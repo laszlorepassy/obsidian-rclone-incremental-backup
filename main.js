@@ -672,14 +672,17 @@ var {
   BackupRun
 } = require_rclone();
 var { ScreenWakeLock } = require_wake_lock();
+function plural(n, word) {
+  return `${n} ${word}${n === 1 ? "" : "s"}`;
+}
 function errMessage(err) {
   return err && err.message ? err.message : String(err);
 }
 function backupStats(r) {
   return [
-    r.files || r.deletes ? `${r.files} changed file(s), ${humanSize(r.bytes)}` : "nothing had changed",
+    r.files || r.deletes ? `${plural(r.files, "changed file")}, ${humanSize(r.bytes)}` : "nothing had changed",
     r.deletes ? `${r.deletes} deleted` : "",
-    r.pruned ? `${r.pruned} old incremental folder(s) removed` : ""
+    r.pruned ? `${plural(r.pruned, "old incremental folder")} removed` : ""
   ].filter(Boolean).join(", ");
 }
 var IncrementalBackupPlugin = class extends Plugin {
@@ -907,7 +910,7 @@ Removing old incremental folders...`);
             this.activeNotice.setMessage(`Backup: comparing files, ${p.checks}/${p.totalChecks} checked`);
             return;
           }
-          const files = p.totalFiles ? `${p.files}/${p.totalFiles} files` : `${p.files} files`;
+          const files = p.totalFiles ? `${p.files}/${p.totalFiles} files` : plural(p.files, "file");
           const size = p.totalBytes ? `${humanSize(p.bytes)} / ${humanSize(p.totalBytes)}` : humanSize(p.bytes);
           this.activeNotice.setMessage(`Backing up: ${files}, ${size}`);
         }
@@ -920,12 +923,12 @@ Removing old incremental folders...`);
       result = await run.run();
       if (this.activeNotice) {
         const stats = backupStats(result);
-        const summary = result.errors.length ? `Backup done, with ${result.errors.length} error(s):
+        const summary = result.errors.length ? `Backup done, with ${plural(result.errors.length, "error")}:
 ${summarizeErrors(result.errors)}
 Details: backup-errors.log
 ${stats}` : `Backup done.
 ${stats}` + (result.retried.length ? `
-(rclone hit ${result.retried.length} error(s) and recovered by retrying; see backup-errors.log)` : "");
+(rclone hit ${plural(result.retried.length, "error")} and recovered by retrying; see backup-errors.log)` : "");
         this.finishNotice(summary);
       }
       if (result.errors.length) await this.appendLog(logFilePath, result.errors.join("\n"));
@@ -1146,9 +1149,9 @@ var IncrementalBackupSettingTab = class extends PluginSettingTab {
     new Setting(containerEl).setName("Run backup now").addButton((btn) => btn.setButtonText("Run backup").setCta().onClick(() => this.plugin.runBackup({ trigger: "manual" })));
     if (s.lastRun) {
       const lr = s.lastRun;
-      const parts = [`${lr.files} changed file(s)`];
-      parts.push(lr.errors ? `${lr.errors} errors` : "no errors");
-      if (lr.pruned) parts.push(`${lr.pruned} old incremental folder(s) deleted`);
+      const parts = [plural(lr.files, "changed file")];
+      parts.push(lr.errors ? plural(lr.errors, "error") : "no errors");
+      if (lr.pruned) parts.push(`${plural(lr.pruned, "old incremental folder")} deleted`);
       containerEl.createEl("p", {
         text: `Last backup (${lr.trigger}): ${new Date(lr.time).toLocaleString()} \u2014 ${parts.join(", ")}`,
         cls: "setting-item-description"
