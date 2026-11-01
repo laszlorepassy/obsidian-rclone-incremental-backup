@@ -17,6 +17,14 @@ function errMessage(err) {
   return err && err.message ? err.message : String(err);
 }
 
+function backupStats(r) {
+  return [
+    r.files || r.deletes ? `${r.files} changed file(s), ${humanSize(r.bytes)}` : 'nothing had changed',
+    r.deletes ? `${r.deletes} deleted` : '',
+    r.pruned ? `${r.pruned} old incremental folder(s) removed` : '',
+  ].filter(Boolean).join(', ');
+}
+
 class IncrementalBackupPlugin extends Plugin {
   async onload() {
     await this.loadSettings();
@@ -251,8 +259,9 @@ class IncrementalBackupPlugin extends Plugin {
       exclude: [...this.settings.excludeList, ...this.ownStateExcludes()],
       keepIncrementalDays: this.settings.keepIncrementalDays,
       inplace: this.settings.inplace,
-      onPruning: () => {
-        if (this.activeNotice) this.activeNotice.setMessage('Backup: copy complete, removing old incremental folders...');
+      // The copy is finished here; pruning old folders can take long on slow drives, so say "done" first.
+      onCopied: (r) => {
+        if (this.activeNotice && this.settings.keepIncrementalDays > 0) this.activeNotice.setMessage(`Backup done.\n${backupStats(r)}\nRemoving old incremental folders...`);
       },
       onProgress: (p) => {
         const now = Date.now();
@@ -272,27 +281,19 @@ class IncrementalBackupPlugin extends Plugin {
       result = await run.run();
       if (this.activeNotice) {
         // Stays up (created with duration 0) until clicked away, so an unattended run can still be confirmed.
-        const stats = [
-          result.files || result.deletes ? `${result.files} changed file(s), ${humanSize(result.bytes)}` : 'nothing had changed',
-          result.deletes ? `${result.deletes} deleted` : '',
-          result.pruned ? `${result.pruned} old incremental folder(s) removed` : '',
-        ].filter(Boolean).join(', ');
+        const stats = backupStats(result);
         const summary = result.errors.length
           ? `Backup done, with ${result.errors.length} error(s):\n${summarizeErrors(result.errors)}\nDetails: backup-errors.log\n${stats}`
           : `Backup done.\n${stats}`
             + (result.retried.length ? `\n(rclone hit ${result.retried.length} error(s) and recovered by retrying; see backup-errors.log)` : '');
-        this.activeNotice.setMessage(summary);
-        this.activeNotice = null;
+        this.finishNotice(summary);
       }
       if (result.errors.length) await this.appendLog(logFilePath, result.errors.join('\n'));
       else if (result.retried.length) await this.appendLog(logFilePath, 'Recovered by retrying:\n' + result.retried.join('\n'));
     } catch (err) {
       const message = errMessage(err);
       if (!err.cancelled) console.error('Incremental Backup error:', err);
-      if (this.activeNotice) {
-        this.activeNotice.setMessage(err instanceof RcloneMissingError || err.cancelled ? message : 'Backup error: ' + message);
-        this.activeNotice = null;
-      }
+      if (this.activeNotice) this.finishNotice(err instanceof RcloneMissingError || err.cancelled ? message : 'Backup error: ' + message);
       if (!err.cancelled) await this.appendLog(logFilePath, message);
       return err.cancelled ? 'busy' : 'failed';
     } finally {
@@ -316,6 +317,13 @@ class IncrementalBackupPlugin extends Plugin {
       console.error('Incremental Backup: could not save settings', err);
     }
     return 'ok';
+  }
+
+  /** Replaces the progress notice with a fresh one that stays until clicked away, so the final text is never stuck behind the progress one. */
+  finishNotice(text) {
+    try { this.activeNotice.hide(); } catch (e) { /* already gone */ }
+    this.activeNotice = null;
+    new Notice(text, 0);
   }
 
   async appendLog(logFilePath, message) {

@@ -247,7 +247,7 @@ class BackupRun {
           return reject(err);
         }
         let pruned = 0;
-        if (o.onPruning) o.onPruning();
+        if (o.onCopied) o.onCopied({ files: stats ? stats.transfers || 0 : 0, bytes: stats ? stats.bytes || 0 : 0, deletes: stats ? stats.deletes || 0 : 0 });
         try {
           pruned = await pruneIncremental(path.join(o.targetRoot, o.incrementalDirName), o.keepIncrementalDays);
         } catch (e) {
