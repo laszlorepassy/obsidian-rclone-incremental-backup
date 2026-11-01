@@ -496,6 +496,7 @@ var require_rclone = __commonJS({
               return reject(err);
             }
             let pruned = 0;
+            if (o.onPruning) o.onPruning();
             try {
               pruned = await pruneIncremental(path2.join(o.targetRoot, o.incrementalDirName), o.keepIncrementalDays);
             } catch (e) {
@@ -882,6 +883,9 @@ var IncrementalBackupPlugin = class extends Plugin {
       exclude: [...this.settings.excludeList, ...this.ownStateExcludes()],
       keepIncrementalDays: this.settings.keepIncrementalDays,
       inplace: this.settings.inplace,
+      onPruning: () => {
+        if (this.activeNotice) this.activeNotice.setMessage("Backup: copy complete, removing old incremental folders...");
+      },
       onProgress: (p) => {
         const now = Date.now();
         if (now - lastUpdate > 400 && this.activeNotice) {
@@ -898,9 +902,16 @@ var IncrementalBackupPlugin = class extends Plugin {
     try {
       result = await run.run();
       if (this.activeNotice) {
-        const summary = result.errors.length ? `Backup finished with ${result.errors.length} error(s):
+        const stats = [
+          result.files || result.deletes ? `${result.files} changed file(s), ${humanSize(result.bytes)}` : "nothing had changed",
+          result.deletes ? `${result.deletes} deleted` : "",
+          result.pruned ? `${result.pruned} old incremental folder(s) removed` : ""
+        ].filter(Boolean).join(", ");
+        const summary = result.errors.length ? `Backup done, with ${result.errors.length} error(s):
 ${summarizeErrors(result.errors)}
-Details: backup-errors.log` : (result.files || result.deletes ? `Backup finished: ${result.files} changed file(s), ${humanSize(result.bytes)}` : "Backup finished: nothing had changed") + (result.retried.length ? `
+Details: backup-errors.log
+${stats}` : `Backup done.
+${stats}` + (result.retried.length ? `
 (rclone hit ${result.retried.length} error(s) and recovered by retrying; see backup-errors.log)` : "");
         this.activeNotice.setMessage(summary);
         this.activeNotice = null;

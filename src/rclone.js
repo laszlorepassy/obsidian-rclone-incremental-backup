@@ -247,6 +247,7 @@ class BackupRun {
           return reject(err);
         }
         let pruned = 0;
+        if (o.onPruning) o.onPruning();
         try {
           pruned = await pruneIncremental(path.join(o.targetRoot, o.incrementalDirName), o.keepIncrementalDays);
         } catch (e) {

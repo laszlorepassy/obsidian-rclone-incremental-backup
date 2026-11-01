@@ -251,6 +251,9 @@ class IncrementalBackupPlugin extends Plugin {
       exclude: [...this.settings.excludeList, ...this.ownStateExcludes()],
       keepIncrementalDays: this.settings.keepIncrementalDays,
       inplace: this.settings.inplace,
+      onPruning: () => {
+        if (this.activeNotice) this.activeNotice.setMessage('Backup: copy complete, removing old incremental folders...');
+      },
       onProgress: (p) => {
         const now = Date.now();
         if (now - lastUpdate > 400 && this.activeNotice) {
@@ -269,11 +272,14 @@ class IncrementalBackupPlugin extends Plugin {
       result = await run.run();
       if (this.activeNotice) {
         // Stays up (created with duration 0) until clicked away, so an unattended run can still be confirmed.
+        const stats = [
+          result.files || result.deletes ? `${result.files} changed file(s), ${humanSize(result.bytes)}` : 'nothing had changed',
+          result.deletes ? `${result.deletes} deleted` : '',
+          result.pruned ? `${result.pruned} old incremental folder(s) removed` : '',
+        ].filter(Boolean).join(', ');
         const summary = result.errors.length
-          ? `Backup finished with ${result.errors.length} error(s):\n${summarizeErrors(result.errors)}\nDetails: backup-errors.log`
-          : (result.files || result.deletes
-            ? `Backup finished: ${result.files} changed file(s), ${humanSize(result.bytes)}`
-            : 'Backup finished: nothing had changed')
+          ? `Backup done, with ${result.errors.length} error(s):\n${summarizeErrors(result.errors)}\nDetails: backup-errors.log\n${stats}`
+          : `Backup done.\n${stats}`
             + (result.retried.length ? `\n(rclone hit ${result.retried.length} error(s) and recovered by retrying; see backup-errors.log)` : '');
         this.activeNotice.setMessage(summary);
         this.activeNotice = null;
