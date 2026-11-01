@@ -211,7 +211,7 @@ class BackupRun {
         if (!parsed) return;
         if (parsed.kind === 'stats') {
           stats = parsed.stats;
-          if (o.onProgress) o.onProgress({ files: stats.transfers || 0, totalFiles: stats.totalTransfers || 0, bytes: stats.bytes || 0, totalBytes: stats.totalBytes || 0 });
+          if (o.onProgress) o.onProgress({ checks: stats.checks || 0, totalChecks: stats.totalChecks || 0, files: stats.transfers || 0, totalFiles: stats.totalTransfers || 0, bytes: stats.bytes || 0, totalBytes: stats.totalBytes || 0 });
         } else if (parsed.kind === 'error') {
           if (isAttemptFailure(parsed.message)) {
             // rclone retries the whole run; what failed in this round only matters if the last round fails too.

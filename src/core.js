@@ -149,6 +149,8 @@ function buildRcloneArgs({ sourceDir, targetRoot, fullDirName, incrementalDirNam
     '--log-level', 'NOTICE',
     '--stats', '1s',
     '--stats-log-level', 'NOTICE',
+    // Virtual drives keep modification times at whole seconds; without a window every such file looks changed and gets read and hashed on both sides.
+    '--modify-window', '2s',
   ];
   // Virtual drives (pCloud, Google Drive, ...) often refuse the .partial -> final rename rclone normally does.
   if (inplace) args.push('--inplace');

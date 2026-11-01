@@ -267,6 +267,10 @@ class IncrementalBackupPlugin extends Plugin {
         const now = Date.now();
         if (now - lastUpdate > 400 && this.activeNotice) {
           lastUpdate = now;
+          if (!p.files && p.totalChecks) {
+            this.activeNotice.setMessage(`Backup: comparing files, ${p.checks}/${p.totalChecks} checked`);
+            return;
+          }
           const files = p.totalFiles ? `${p.files}/${p.totalFiles} files` : `${p.files} files`;
           const size = p.totalBytes ? `${humanSize(p.bytes)} / ${humanSize(p.totalBytes)}` : humanSize(p.bytes);
           this.activeNotice.setMessage(`Backing up: ${files}, ${size}`);

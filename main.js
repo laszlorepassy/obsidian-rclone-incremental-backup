@@ -125,7 +125,10 @@ var require_core = __commonJS({
         "--stats",
         "1s",
         "--stats-log-level",
-        "NOTICE"
+        "NOTICE",
+        // Virtual drives keep modification times at whole seconds; without a window every such file looks changed and gets read and hashed on both sides.
+        "--modify-window",
+        "2s"
       ];
       if (inplace) args.push("--inplace");
       for (const raw of exclude || []) {
@@ -462,7 +465,7 @@ var require_rclone = __commonJS({
             if (!parsed) return;
             if (parsed.kind === "stats") {
               stats = parsed.stats;
-              if (o.onProgress) o.onProgress({ files: stats.transfers || 0, totalFiles: stats.totalTransfers || 0, bytes: stats.bytes || 0, totalBytes: stats.totalBytes || 0 });
+              if (o.onProgress) o.onProgress({ checks: stats.checks || 0, totalChecks: stats.totalChecks || 0, files: stats.transfers || 0, totalFiles: stats.totalTransfers || 0, bytes: stats.bytes || 0, totalBytes: stats.totalBytes || 0 });
             } else if (parsed.kind === "error") {
               if (isAttemptFailure(parsed.message)) {
                 retried.push(...errors.splice(0));
@@ -900,6 +903,10 @@ Removing old incremental folders...`);
         const now = Date.now();
         if (now - lastUpdate > 400 && this.activeNotice) {
           lastUpdate = now;
+          if (!p.files && p.totalChecks) {
+            this.activeNotice.setMessage(`Backup: comparing files, ${p.checks}/${p.totalChecks} checked`);
+            return;
+          }
           const files = p.totalFiles ? `${p.files}/${p.totalFiles} files` : `${p.files} files`;
           const size = p.totalBytes ? `${humanSize(p.bytes)} / ${humanSize(p.totalBytes)}` : humanSize(p.bytes);
           this.activeNotice.setMessage(`Backing up: ${files}, ${size}`);
